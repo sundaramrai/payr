@@ -25,9 +25,9 @@ function formatTimestamp(iso: string): string {
 
   const time = date.toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })
 
-  if (isToday) return `Today · ${time}`
-  if (isYesterday) return `Yesterday · ${time}`
-  return date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' }) + ` · ${time}`
+  if (isToday) return `Today / ${time}`
+  if (isYesterday) return `Yesterday / ${time}`
+  return `${date.toLocaleDateString('en-IN', { day: '2-digit', month: 'short' })} / ${time}`
 }
 
 function statusClass(status: Transaction['status']): string {
@@ -79,7 +79,7 @@ function TransactionDetail({ tx, onClose }: DetailModalProps) {
       <div className="tx-detail-panel">
         <div className="tx-detail-header">
           <span className="tx-detail-title">Transaction Detail</span>
-          <button className="tx-detail-close" onClick={onClose} aria-label="Close detail panel">✕</button>
+          <button className="tx-detail-close" type="button" onClick={onClose} aria-label="Close detail panel">✕</button>
         </div>
 
         <div className="tx-detail-body">
@@ -142,25 +142,26 @@ export function TransactionHistory({ transactions }: Props) {
         <div className="section-header">
           <span className="section-title">Transaction history</span>
           <span className="section-meta">
-            {transactions.length} transaction{transactions.length === 1 ? '' : 's'} · Click to view
+            {transactions.length} transaction{transactions.length === 1 ? '' : 's'} / Click to view
           </span>
         </div>
 
         <ul className="tx-list" aria-label="Transaction history">
-          {transactions.map((tx) => (
-            <li key={tx.id}>
+          {transactions.map((transaction) => (
+            <li key={transaction.id}>
               <button
                 className="tx-row"
-                onClick={() => setSelected(tx)}
-                aria-label={`Transaction ${tx.id.slice(0, 8)}, ${formatCurrency(tx.amount, tx.currency)}, ${statusLabel(tx.status)}`}
+                type="button"
+                onClick={() => setSelected(transaction)}
+                aria-label={`Transaction ${transaction.id.slice(0, 8)}, ${formatCurrency(transaction.amount, transaction.currency)}, ${statusLabel(transaction.status)}`}
               >
                 <div className="tx-left">
-                  <div className="tx-id-text">{tx.id.slice(0, 24)}…</div>
-                  <div className="tx-amount-text">{formatCurrency(tx.amount, tx.currency)}</div>
+                  <div className="tx-id-text">{`${transaction.id.slice(0, 24)}...`}</div>
+                  <div className="tx-amount-text">{formatCurrency(transaction.amount, transaction.currency)}</div>
                 </div>
-                <div className="tx-time">{formatTimestamp(tx.timestamp)}</div>
-                <div className={`tx-status-tag ${statusClass(tx.status)}`}>
-                  {statusLabel(tx.status)}
+                <div className="tx-time">{formatTimestamp(transaction.timestamp)}</div>
+                <div className={`tx-status-tag ${statusClass(transaction.status)}`}>
+                  {statusLabel(transaction.status)}
                 </div>
               </button>
             </li>
@@ -168,9 +169,7 @@ export function TransactionHistory({ transactions }: Props) {
         </ul>
       </div>
 
-      {selected && (
-        <TransactionDetail tx={selected} onClose={() => setSelected(null)} />
-      )}
+      {selected && <TransactionDetail tx={selected} onClose={() => setSelected(null)} />}
     </>
   )
 }
