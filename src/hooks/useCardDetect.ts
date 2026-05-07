@@ -1,6 +1,5 @@
 'use client'
 
-import { useMemo } from 'react'
 import { CardType } from '@/types'
 import { detectCardType, getCvvLength, cardTypeLabel } from '@/utils/cardFormatter'
 
@@ -9,9 +8,9 @@ export function useCardDetect(cardNumber: string): {
   cvvLength: number
   label: string
 } {
-  const cardType = useMemo(() => detectCardType(cardNumber), [cardNumber])
-  const cvvLength = useMemo(() => getCvvLength(cardType), [cardType])
-  const label = useMemo(() => cardTypeLabel(cardType), [cardType])
+  const cardType = detectCardType(cardNumber)
+  const cvvLength = getCvvLength(cardType)
+  const label = cardTypeLabel(cardType)
 
   return { cardType, cvvLength, label }
 }
