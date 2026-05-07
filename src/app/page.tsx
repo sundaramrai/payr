@@ -148,7 +148,6 @@ export default function HomePage() {
         {/* ── MASTHEAD ── */}
         <header className="masthead">
           <div className="brand-mark">
-            <span className="brand-tag">Secure checkout · v1.0</span>
             <span className="brand-name">
               Pay<span className="r-accent">R</span>
             </span>
