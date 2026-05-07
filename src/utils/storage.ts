@@ -16,7 +16,9 @@ export function saveTransactions(transactions: Transaction[]): void {
   if (globalThis.window === undefined) return
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(transactions))
-  } catch { }
+  } catch {
+    // Silently fail if storage is unavailable
+  }
 }
 
 export function upsertTransaction(
