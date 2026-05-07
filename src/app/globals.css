@@ -1,6 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Syne:wght@400;700;800&family=Martian+Mono:wght@300;400;600&display=swap');
 
-/* ── RESET & ROOT ── */
 *,
 *::before,
 *::after {
@@ -34,7 +33,6 @@ body {
   min-height: 100vh;
 }
 
-/* ── GRID BACKGROUND ── */
 .pg-root {
   position: relative;
   min-height: 100vh;
@@ -52,7 +50,6 @@ body {
   z-index: 0;
 }
 
-/* ── LAYOUT ── */
 .pg-wrap {
   position: relative;
   z-index: 1;
@@ -61,7 +58,6 @@ body {
   padding: 32px 16px 64px;
 }
 
-/* ── MASTHEAD ── */
 .masthead {
   display: flex;
   align-items: flex-start;
@@ -160,7 +156,6 @@ body {
   text-transform: uppercase;
 }
 
-/* ── CARD PREVIEW SECTION ── */
 .card-preview-section {
   border: 2px solid var(--ink);
   border-top: none;
@@ -176,7 +171,6 @@ body {
   margin-bottom: 12px;
 }
 
-/* ── 3D CARD ── */
 .card-scene {
   perspective: 900px;
   height: 175px;
@@ -343,7 +337,6 @@ body {
   padding: 0 20px;
 }
 
-/* ── BENTO FORM ── */
 .form-bento {
   display: grid;
   grid-template-columns: 1fr 1fr;
@@ -465,7 +458,6 @@ body {
   letter-spacing: 0.02em;
 }
 
-/* ── PAY BUTTON ── */
 .pay-cell {
   grid-column: 1 / -1;
   border-right: 2px solid var(--ink);
@@ -516,7 +508,6 @@ body {
   margin-top: 3px;
 }
 
-/* ── SPINNER ── */
 .spinner {
   display: inline-block;
   width: 18px;
@@ -534,7 +525,6 @@ body {
   }
 }
 
-/* ── STATE BAR ── */
 .states-section {
   display: flex;
   border-left: 2px solid var(--ink);
@@ -636,7 +626,6 @@ body {
   color: var(--warn);
 }
 
-/* ── STATUS SCREENS ── */
 .status-screen {
   border: 2px solid var(--ink);
   border-top: none;
@@ -770,7 +759,6 @@ body {
   border: 1px solid var(--warn);
 }
 
-/* ── RESULT WRAP ── */
 .result-wrap {
   display: flex;
   flex-direction: column;
@@ -797,7 +785,6 @@ body {
   opacity: 1;
 }
 
-/* ── RETRY BANNER ── */
 .retry-banner {
   display: flex;
   align-items: stretch;
@@ -878,7 +865,6 @@ body {
   opacity: 0.32;
 }
 
-/* ── TRANSACTION HISTORY ── */
 .history-section {
   margin-top: 28px;
 }
@@ -1012,7 +998,6 @@ body {
   color: var(--warn);
 }
 
-/* ── TX DETAIL MODAL ── */
 .tx-detail-overlay {
   position: fixed;
   inset: 0;
@@ -1120,7 +1105,6 @@ body {
   opacity: 0.75;
 }
 
-/* ── RESPONSIVE ── */
 @media (max-width: 480px) {
   .pg-wrap {
     padding: 20px 12px 48px;
