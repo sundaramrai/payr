@@ -4,10 +4,25 @@ export type CardType = 'visa' | 'mastercard' | 'amex' | 'unknown'
 
 export type Currency = 'INR' | 'USD'
 
+export interface CardPreviewFields {
+  name: string
+  number: string
+  expiry: string
+}
+
+export interface PaymentFormValues extends CardPreviewFields {
+  amount: string
+  currency: Currency
+}
+
 export interface CardFields {
   name: string
   number: string
   expiry: string
+  cvv: string
+}
+
+export interface PaymentFormState extends PaymentFormValues {
   cvv: string
 }
 
