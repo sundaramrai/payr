@@ -1,7 +1,7 @@
 'use client'
 
 import { CardType } from '@/types'
-import { maskCardNumber, cardTypeLabel } from '@/utils/cardFormatter'
+import { cardTypeLabel, maskCardNumber } from '@/utils/cardFormatter'
 
 interface Props {
   readonly name: string
@@ -17,9 +17,8 @@ export function LiveCardPreview({ name, number, expiry, cardType }: Props) {
   const typeLabel = cardTypeLabel(cardType)
 
   return (
-    <div className="card-scene" aria-label="Live card preview — hover to flip">
+    <div className="card-scene" aria-label="Live card preview - hover or focus to flip">
       <div className="card-3d">
-        {/* FRONT */}
         <div className="card-face card-front">
           <div className="card-top-row">
             <svg className="card-chip" viewBox="0 0 36 28" fill="none" aria-hidden="true">
@@ -48,23 +47,20 @@ export function LiveCardPreview({ name, number, expiry, cardType }: Props) {
               <div className="card-field-label">Cardholder</div>
               <div className="card-field-val">{displayName}</div>
             </div>
-            <div style={{ textAlign: 'right' }}>
+            <div className="card-expiry-group">
               <div className="card-field-label">Expires</div>
               <div className="card-field-val card-expiry">{displayExpiry}</div>
             </div>
           </div>
         </div>
 
-        {/* BACK */}
         <div className="card-face card-back">
           <div className="card-back-strip" aria-hidden="true" />
           <div className="card-back-cvv-row">
-            <div className="cvv-stripe" aria-label="CVV hidden">• • •</div>
+            <div className="cvv-stripe" aria-label="CVV hidden">* * *</div>
             <span className="cvv-label">CVV</span>
           </div>
-          <p className="card-back-note">
-            No real card data is stored or transmitted
-          </p>
+          <p className="card-back-note">No real card data is stored or transmitted</p>
         </div>
       </div>
     </div>
