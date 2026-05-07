@@ -16,18 +16,18 @@ export function saveTransactions(transactions: Transaction[]): void {
   if (globalThis.window === undefined) return
   try {
     localStorage.setItem(STORAGE_KEY, JSON.stringify(transactions))
-  } catch {
-    // storage unavailable — fail silently
-  }
+  } catch { }
 }
 
 export function upsertTransaction(
   transactions: Transaction[],
   next: Transaction
 ): Transaction[] {
-  const idx = transactions.findIndex((t) => t.id === next.id)
-  if (idx === -1) return [next, ...transactions]
+  const index = transactions.findIndex((transaction) => transaction.id === next.id)
+  if (index === -1) {
+    return [next, ...transactions]
+  }
   const updated = [...transactions]
-  updated[idx] = next
+  updated[index] = next
   return updated
 }
