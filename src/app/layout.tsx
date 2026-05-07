@@ -2,7 +2,7 @@ import type { Metadata } from 'next'
 import './globals.css'
 
 export const metadata: Metadata = {
-  title: 'PayR — Secure Payment Gateway',
+  title: 'PayR - Secure Payment Gateway',
   description: 'A modern, secure payment gateway built with Next.js',
 }
 
