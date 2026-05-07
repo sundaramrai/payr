@@ -21,13 +21,13 @@ export function RetryBanner({
         <div className="retry-left">
           <div className="retry-title">No more retries</div>
           <div className="retry-sub">
-            {failureReason ?? 'Payment could not be completed'} · Please try a different card
+            {failureReason ?? 'Payment could not be completed'} / Please try a different card
           </div>
         </div>
         <div className="retry-right">
-          <div className="attempt-of">Attempts</div>
-          <div className="attempt-count" style={{ color: 'var(--danger)' }}>{maxRetries}</div>
-          <div className="attempt-of">used</div>
+          <div className="attempt-of">Attempts used</div>
+          <div className="attempt-count attempt-count--danger">{maxRetries}</div>
+          <div className="attempt-of">of {maxRetries}</div>
         </div>
       </div>
     )
@@ -38,19 +38,20 @@ export function RetryBanner({
       <div className="retry-left">
         <div className="retry-title">Retry payment?</div>
         <div className="retry-sub">
-          {failureReason ?? 'Payment failed'} · Same transaction ID reused
+          {failureReason ?? 'Payment failed'} / Same transaction ID will be reused
         </div>
         <button
           className="retry-btn"
+          type="button"
           onClick={onRetry}
           aria-label={`Retry payment, attempt ${attempt} of ${maxRetries}`}
         >
-          ↻ Retry now
+          Retry now
         </button>
       </div>
-      <div className="retry-right" aria-label={`Attempt ${attempt - 1} of ${maxRetries}`}>
+      <div className="retry-right" aria-label={`Attempt ${attempt} of ${maxRetries}`}>
         <div className="attempt-of">Attempt</div>
-        <div className="attempt-count">{attempt - 1}</div>
+        <div className="attempt-count">{attempt}</div>
         <div className="attempt-of">of {maxRetries}</div>
       </div>
     </div>
