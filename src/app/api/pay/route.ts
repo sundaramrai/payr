@@ -1,4 +1,5 @@
 import type { PaymentPayload } from '@/types'
+import { NextRequest, NextResponse } from 'next/server'
 
 const FAILURE_REASONS = [
   'Insufficient funds',
@@ -20,14 +21,14 @@ function wait(ms: number): Promise<void> {
   return new Promise((resolve) => setTimeout(resolve, ms))
 }
 
-export async function POST(req: Request): Promise<Response> {
+export async function POST(req: NextRequest): Promise<NextResponse> {
   const body = (await req.json()) as Partial<PaymentPayload>
   const transactionId = body.transactionId ?? 'unknown'
   const roll = Math.random()
 
   if (roll > 0.85) {
     await wait(TIMEOUT_DELAY_MS)
-    return Response.json(
+    return NextResponse.json(
       { transactionId, status: 'failed', reason: 'Gateway timeout' },
       { status: 504 }
     )
@@ -35,7 +36,7 @@ export async function POST(req: Request): Promise<Response> {
 
   if (roll > 0.6) {
     await wait(FAILURE_DELAY_MS)
-    return Response.json(
+    return NextResponse.json(
       { transactionId, status: 'failed', reason: pickFailureReason() },
       { status: 402 }
     )
@@ -43,7 +44,7 @@ export async function POST(req: Request): Promise<Response> {
 
   await wait(SUCCESS_DELAY_MS)
 
-  return Response.json(
+  return NextResponse.json(
     { transactionId, status: 'success' },
     { status: 200 }
   )
