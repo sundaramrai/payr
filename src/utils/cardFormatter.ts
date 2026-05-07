@@ -1,5 +1,9 @@
 import { CardType } from '@/types'
 
+const STANDARD_MASK = '****'
+const AMEX_MIDDLE_MASK = '******'
+const AMEX_LAST_MASK = '*****'
+
 export function detectCardType(number: string): CardType {
   const raw = number.replaceAll(' ', '')
   if (raw.startsWith('4')) return 'visa'
@@ -11,10 +15,10 @@ export function detectCardType(number: string): CardType {
 export function formatCardNumber(value: string, cardType: CardType): string {
   const raw = value.replaceAll(/\D/g, '')
   if (cardType === 'amex') {
-    const p1 = raw.slice(0, 4)
-    const p2 = raw.slice(4, 10)
-    const p3 = raw.slice(10, 15)
-    return [p1, p2, p3].filter(Boolean).join(' ')
+    const first = raw.slice(0, 4)
+    const second = raw.slice(4, 10)
+    const third = raw.slice(10, 15)
+    return [first, second, third].filter(Boolean).join(' ')
   }
   return raw.replaceAll(/(.{4})/g, '$1 ').trim()
 }
@@ -29,14 +33,13 @@ export function maskCardNumber(number: string, cardType: CardType): string {
   const raw = number.replaceAll(' ', '')
   if (cardType === 'amex') {
     const visible = raw.slice(0, 4)
-    const masked = '••••••'
-    const last = raw.slice(10, 15) || '•••••'
-    return `${visible} ${masked} ${last}`
+    const last = raw.slice(10, 15) || AMEX_LAST_MASK
+    return `${visible} ${AMEX_MIDDLE_MASK} ${last}`.trim()
   }
-  const groups = raw.padEnd(16, '•').match(/.{1,4}/g) ?? []
+  const groups = raw.padEnd(16, '*').match(/.{1,4}/g) ?? []
   return groups
-    .map((g, i) => (i < 2 ? '••••' : g))
-    .join('  ')
+    .map((group, index) => (index < 2 ? STANDARD_MASK : group))
+    .join(' ')
 }
 
 export function getCvvLength(cardType: CardType): number {
@@ -52,11 +55,11 @@ export function formatAmount(amount: string): string {
 }
 
 export function cardTypeLabel(cardType: CardType): string {
-  const map: Record<CardType, string> = {
+  const labels: Record<CardType, string> = {
     visa: 'VISA',
     mastercard: 'MC',
     amex: 'AMEX',
     unknown: '',
   }
-  return map[cardType]
+  return labels[cardType]
 }
