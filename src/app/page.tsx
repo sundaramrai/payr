@@ -1,14 +1,15 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { LiveCardPreview } from '@/components/LiveCardPreview'
 import { PaymentStage } from '@/components/PaymentStage'
 import { PaymentStatusRail } from '@/components/PaymentStatusRail'
 import { TransactionHistory } from '@/components/TransactionHistory'
-import { useCardDetect } from '@/hooks/useCardDetect'
 import { usePayment } from '@/hooks/usePayment'
 import { usePaymentStore } from '@/store/paymentStore'
-import { CardPreviewFields, Currency, PaymentFormValues } from '@/types'
+import { cardTypeLabel, detectCardType } from '@/utils/cardFormatter'
+import { CardPreviewFields, PaymentFormValues } from '@/types'
 
 const INITIAL_PREVIEW_FIELDS: CardPreviewFields = {
   name: '',
@@ -17,10 +18,18 @@ const INITIAL_PREVIEW_FIELDS: CardPreviewFields = {
 }
 
 export default function HomePage() {
-  const { transactions, loadHistory, currentTxId } = usePaymentStore()
+  const { transactions, loadHistory, currentTxId } = usePaymentStore(
+    useShallow((state) => ({
+      transactions: state.transactions,
+      loadHistory: state.loadHistory,
+      currentTxId: state.currentTxId,
+    }))
+  )
+
   const {
     status,
-    currentAttempt,
+    attemptCount,
+    nextAttempt,
     failureReason,
     canRetry,
     retriesExhausted,
@@ -30,56 +39,62 @@ export default function HomePage() {
   } = usePayment()
 
   const [cardFields, setCardFields] = useState<CardPreviewFields>(INITIAL_PREVIEW_FIELDS)
-  const [lastPayment, setLastPayment] = useState({
-    amount: '',
-    currency: 'INR' as Currency,
-  })
-  const [pendingRetry, setPendingRetry] = useState<PaymentFormValues | null>(null)
-
-  const { cardType } = useCardDetect(cardFields.number)
+  const [submittedPayment, setSubmittedPayment] = useState<PaymentFormValues | null>(null)
 
   useEffect(() => {
     loadHistory()
   }, [loadHistory])
 
   function handleSubmit(fields: PaymentFormValues) {
-    setLastPayment({ amount: fields.amount, currency: fields.currency })
-    setPendingRetry(fields)
+    setSubmittedPayment(fields)
     submitPayment(fields)
   }
 
   function handleRetry() {
-    if (pendingRetry) {
-      submitPayment(pendingRetry)
+    if (submittedPayment) {
+      submitPayment(submittedPayment)
     }
   }
 
   function handleReset() {
     resetPayment()
-    setPendingRetry(null)
+    setSubmittedPayment(null)
     setCardFields(INITIAL_PREVIEW_FIELDS)
-    setLastPayment({ amount: '', currency: 'INR' })
   }
 
+  const cardType = detectCardType(cardFields.number)
+  const previewCardTypeLabel = cardTypeLabel(cardType)
+  const submittedAmount = submittedPayment?.amount ?? ''
+  const submittedCurrency = submittedPayment?.currency ?? 'INR'
+
   return (
-    <main className="pg-root">
-      <div className="pg-wrap">
-        <header className="masthead">
-          <div className="brand-mark">
-            <span className="brand-name">
-              Pay<span className="r-accent">R</span>
-            </span>
-          </div>
-          <div className="masthead-right">
-            <div className="status-live" aria-label="Gateway status: online">
-              Gateway online
-            </div>
-            <div className="ssl-note">256-BIT SSL ENCRYPTED</div>
+    <main className="page-grid relative min-h-screen">
+      <div className="relative z-10 mx-auto flex min-h-screen w-full max-w-3xl flex-col px-4 pb-14 pt-8 sm:px-6">
+        <header className="border-ink flex items-start justify-between border-b-2 pb-4">
+          <h1 className="text-3xl font-extrabold tracking-[-0.04em] sm:text-4xl">
+            Pay<span className="text-amber underline decoration-2 underline-offset-2">R</span>
+          </h1>
+
+          <div className="inline-flex items-center gap-2 rounded-sm border border-success px-3 py-1 font-mono text-[0.56rem] font-light uppercase tracking-[0.12em] text-success">
+            <span className="size-1.5 rounded-full bg-current" aria-hidden="true" />
+            Gateway ready
           </div>
         </header>
 
-        <section className="card-preview-section" aria-label="Card preview">
-          <div className="preview-hint">Live preview / hover or focus to flip</div>
+        <section
+          className="border-ink border-x-2 border-b-2 px-4 py-4 sm:px-5"
+          aria-label="Card preview"
+        >
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <span className="font-mono text-[0.5rem] uppercase tracking-[0.18em] text-ink/35">
+              Live preview / click or focus to flip
+            </span>
+            {previewCardTypeLabel && (
+              <span className="font-mono text-[0.5rem] font-semibold uppercase tracking-[0.12em] text-amber">
+                {previewCardTypeLabel}
+              </span>
+            )}
+          </div>
           <LiveCardPreview
             name={cardFields.name}
             number={cardFields.number}
@@ -92,13 +107,14 @@ export default function HomePage() {
 
         <PaymentStage
           status={status}
-          amount={lastPayment.amount}
-          currency={lastPayment.currency}
+          amount={submittedAmount}
+          currency={submittedCurrency}
           transactionId={currentTxId}
           failureReason={failureReason}
           canRetry={canRetry}
           retriesExhausted={retriesExhausted}
-          currentAttempt={currentAttempt}
+          attemptCount={attemptCount}
+          nextAttempt={nextAttempt}
           maxRetries={maxRetries}
           isProcessing={status === 'processing'}
           onSubmit={handleSubmit}
