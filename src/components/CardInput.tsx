@@ -1,19 +1,24 @@
 'use client'
 
-import { useId, useState } from 'react'
+import { SyntheticEvent, useEffect, useId, useRef, useState } from 'react'
+import { FormField } from '@/components/ui/FormField'
 import {
+  CardPreviewFields,
   Currency,
   FormErrors,
   PaymentFormState,
   PaymentFormValues,
-  CardPreviewFields,
 } from '@/types'
-import { useCardDetect } from '@/hooks/useCardDetect'
+import { parseCurrencySymbol } from '@/utils/currency'
+import { cn } from '@/utils/cn'
 import {
+  cardTypeLabel,
   detectCardType,
   formatAmount,
   formatCardNumber,
   formatExpiry,
+  getCardMaxLength,
+  getCvvLength,
 } from '@/utils/cardFormatter'
 import {
   isFormValid,
@@ -24,7 +29,6 @@ import {
   validateExpiry,
   validateName,
 } from '@/utils/validators'
-import { parseCurrencySymbol } from '@/utils/currency'
 
 interface Props {
   readonly onSubmit: (fields: PaymentFormValues) => void
@@ -32,7 +36,7 @@ interface Props {
   readonly isProcessing: boolean
 }
 
-type FormField = keyof FormErrors
+type FormFieldName = keyof FormErrors
 
 const INITIAL_VALUES: PaymentFormState = {
   name: '',
@@ -43,7 +47,7 @@ const INITIAL_VALUES: PaymentFormState = {
   currency: 'INR',
 }
 
-const TOUCHED_FIELDS: Record<FormField, true> = {
+const TOUCHED_FIELDS: Record<FormFieldName, true> = {
   name: true,
   number: true,
   expiry: true,
@@ -51,60 +55,65 @@ const TOUCHED_FIELDS: Record<FormField, true> = {
   amount: true,
 }
 
+const CURRENCY_OPTIONS: ReadonlyArray<{ value: Currency; label: string }> = [
+  { value: 'INR', label: 'INR ₹' },
+  { value: 'USD', label: 'USD $' },
+]
+
+const INPUT_CLASS =
+  'w-full bg-transparent font-mono text-[0.82rem] tracking-[0.04em] text-ink placeholder:text-ink/25 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50'
+
 export function CardInput({ onSubmit, onFieldChange, isProcessing }: Props) {
   const uid = useId()
+  const hasMountedRef = useRef(false)
   const [values, setValues] = useState<PaymentFormState>(INITIAL_VALUES)
-  const [touched, setTouched] = useState<Partial<Record<FormField, boolean>>>({})
+  const [touched, setTouched] = useState<Partial<Record<FormFieldName, boolean>>>({})
   const [errors, setErrors] = useState<FormErrors>({})
 
   const { name, number, expiry, cvv, amount, currency } = values
-  const { cardType, cvvLength, label: cardTypeLabel } = useCardDetect(number)
+  const cardType = detectCardType(number)
+  const cvvLength = getCvvLength(cardType)
+  const currentCardTypeLabel = cardTypeLabel(cardType)
   const validationErrors = validateAll(values, cardType)
   const submitEnabled = isFormValid(validationErrors) && !isProcessing
   const symbol = parseCurrencySymbol(currency)
 
-  function updateValues(patch: Partial<PaymentFormState>): PaymentFormState {
-    const nextValues = { ...values, ...patch }
-    setValues(nextValues)
-
-    if (
-      patch.name !== undefined ||
-      patch.number !== undefined ||
-      patch.expiry !== undefined
-    ) {
-      onFieldChange({
-        name: nextValues.name,
-        number: nextValues.number,
-        expiry: nextValues.expiry,
-      })
+  useEffect(() => {
+    if (!hasMountedRef.current) {
+      hasMountedRef.current = true
+      return
     }
 
-    return nextValues
+    onFieldChange({ name, number, expiry })
+  }, [expiry, name, number, onFieldChange])
+
+  function updateValues(patch: Partial<PaymentFormState>) {
+    setValues((current) => ({ ...current, ...patch }))
   }
 
-  function markTouched(field: FormField) {
+  function markTouched(field: FormFieldName) {
     setTouched((current) => ({ ...current, [field]: true }))
   }
 
-  function setFieldError(field: FormField, value: string | undefined) {
+  function setFieldError(field: FormFieldName, value: string | undefined) {
     setErrors((current) => ({ ...current, [field]: value }))
   }
 
-  function handleBlur(field: FormField) {
+  function handleBlur(field: FormFieldName) {
     markTouched(field)
     setFieldError(field, validationErrors[field])
   }
 
   function handleNameChange(nextValue: string) {
     updateValues({ name: nextValue })
-
     if (touched.name) {
       setFieldError('name', validateName(nextValue))
     }
   }
 
   function handleNumberChange(nextValue: string) {
-    const formatted = formatCardNumber(nextValue, detectCardType(nextValue))
+    const detectedCardType = detectCardType(nextValue)
+    const formatted = formatCardNumber(nextValue, detectedCardType)
     updateValues({ number: formatted })
 
     if (touched.number) {
@@ -143,12 +152,16 @@ export function CardInput({ onSubmit, onFieldChange, isProcessing }: Props) {
     updateValues({ currency: nextCurrency })
   }
 
-  function handleSubmit(event: React.BaseSyntheticEvent) {
+  function handleSubmit(event: SyntheticEvent<HTMLFormElement>) {
     event.preventDefault()
     setTouched(TOUCHED_FIELDS)
     setErrors(validationErrors)
 
     if (!isFormValid(validationErrors)) {
+      const form = event.currentTarget
+      requestAnimationFrame(() => {
+        form.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
+      })
       return
     }
 
@@ -156,14 +169,20 @@ export function CardInput({ onSubmit, onFieldChange, isProcessing }: Props) {
   }
 
   return (
-    <form className="form-bento" aria-label="Payment details" onSubmit={handleSubmit}>
-      <div className="bento-cell full">
-        <label className="cell-label" htmlFor={`${uid}-name`}>
-          Cardholder name
-        </label>
+    <form
+      className="border-ink grid border-l-2 border-t-2 md:grid-cols-2"
+      aria-label="Payment details"
+      onSubmit={handleSubmit}
+    >
+      <FormField
+        full
+        htmlFor={`${uid}-name`}
+        label="Cardholder name"
+        error={touched.name ? errors.name : undefined}
+      >
         <input
           id={`${uid}-name`}
-          className="cell-input"
+          className={INPUT_CLASS}
           type="text"
           autoComplete="cc-name"
           value={name}
@@ -171,56 +190,52 @@ export function CardInput({ onSubmit, onFieldChange, isProcessing }: Props) {
           onChange={(event) => handleNameChange(event.target.value)}
           onBlur={() => handleBlur('name')}
           aria-describedby={errors.name ? `${uid}-name-err` : undefined}
-          aria-invalid={Boolean(errors.name)}
+          aria-invalid={Boolean(touched.name && errors.name)}
           disabled={isProcessing}
         />
-        {touched.name && errors.name && (
-          <span id={`${uid}-name-err`} className="error-tag" role="alert">
-            {errors.name}
-          </span>
-        )}
-      </div>
+      </FormField>
 
-      <div className="bento-cell full">
-        <label className="cell-label" htmlFor={`${uid}-number`}>
-          Card number
-        </label>
-        <div className="number-row">
+      <FormField
+        full
+        htmlFor={`${uid}-number`}
+        label="Card number"
+        error={touched.number ? errors.number : undefined}
+      >
+        <div className="flex items-center justify-between gap-3">
           <input
             id={`${uid}-number`}
-            className="cell-input"
+            className={INPUT_CLASS}
             type="text"
             inputMode="numeric"
             autoComplete="cc-number"
             value={number}
             placeholder="0000 0000 0000 0000"
-            maxLength={cardType === 'amex' ? 17 : 19}
+            maxLength={getCardMaxLength(cardType)}
             onChange={(event) => handleNumberChange(event.target.value)}
             onBlur={() => handleBlur('number')}
             aria-describedby={errors.number ? `${uid}-number-err` : undefined}
-            aria-invalid={Boolean(errors.number)}
+            aria-invalid={Boolean(touched.number && errors.number)}
             disabled={isProcessing}
           />
-          {cardTypeLabel && (
-            <span className="card-type-badge" aria-label={`Card type: ${cardTypeLabel}`}>
-              {cardTypeLabel}
+          {currentCardTypeLabel && (
+            <span
+              className="shrink-0 rounded-sm border border-amber px-2 py-1 font-mono text-[0.56rem] font-semibold tracking-[0.06em] text-amber"
+              aria-label={`Card type: ${currentCardTypeLabel}`}
+            >
+              {currentCardTypeLabel}
             </span>
           )}
         </div>
-        {touched.number && errors.number && (
-          <span id={`${uid}-number-err`} className="error-tag" role="alert">
-            {errors.number}
-          </span>
-        )}
-      </div>
+      </FormField>
 
-      <div className="bento-cell">
-        <label className="cell-label" htmlFor={`${uid}-expiry`}>
-          Expiry date
-        </label>
+      <FormField
+        htmlFor={`${uid}-expiry`}
+        label="Expiry date"
+        error={touched.expiry ? errors.expiry : undefined}
+      >
         <input
           id={`${uid}-expiry`}
-          className="cell-input"
+          className={INPUT_CLASS}
           type="text"
           inputMode="numeric"
           autoComplete="cc-exp"
@@ -230,23 +245,19 @@ export function CardInput({ onSubmit, onFieldChange, isProcessing }: Props) {
           onChange={(event) => handleExpiryChange(event.target.value)}
           onBlur={() => handleBlur('expiry')}
           aria-describedby={errors.expiry ? `${uid}-expiry-err` : undefined}
-          aria-invalid={Boolean(errors.expiry)}
+          aria-invalid={Boolean(touched.expiry && errors.expiry)}
           disabled={isProcessing}
         />
-        {touched.expiry && errors.expiry && (
-          <span id={`${uid}-expiry-err`} className="error-tag" role="alert">
-            {errors.expiry}
-          </span>
-        )}
-      </div>
+      </FormField>
 
-      <div className="bento-cell">
-        <label className="cell-label" htmlFor={`${uid}-cvv`}>
-          CVV / CVC
-        </label>
+      <FormField
+        htmlFor={`${uid}-cvv`}
+        label="CVV / CVC"
+        error={touched.cvv ? errors.cvv : undefined}
+      >
         <input
           id={`${uid}-cvv`}
-          className="cell-input"
+          className={INPUT_CLASS}
           type="password"
           inputMode="numeric"
           autoComplete="cc-csc"
@@ -256,35 +267,35 @@ export function CardInput({ onSubmit, onFieldChange, isProcessing }: Props) {
           onChange={(event) => handleCvvChange(event.target.value)}
           onBlur={() => handleBlur('cvv')}
           aria-describedby={errors.cvv ? `${uid}-cvv-err` : undefined}
-          aria-invalid={Boolean(errors.cvv)}
+          aria-invalid={Boolean(touched.cvv && errors.cvv)}
           disabled={isProcessing}
         />
-        {touched.cvv && errors.cvv && (
-          <span id={`${uid}-cvv-err`} className="error-tag" role="alert">
-            {errors.cvv}
-          </span>
-        )}
-      </div>
+      </FormField>
 
-      <div className="bento-cell full">
-        <label className="cell-label" htmlFor={`${uid}-amount`}>
-          Amount
-        </label>
-        <div className="amount-row">
+      <FormField
+        full
+        htmlFor={`${uid}-amount`}
+        label="Amount"
+        error={touched.amount ? errors.amount : undefined}
+      >
+        <div className="flex items-center gap-3">
           <select
-            className="currency-select"
+            className="shrink-0 bg-transparent font-mono text-xs font-semibold tracking-[0.08em] text-amber focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
             value={currency}
             onChange={(event) => handleCurrencyChange(event.target.value as Currency)}
             aria-label="Currency"
             disabled={isProcessing}
           >
-            <option value="INR">INR Rs</option>
-            <option value="USD">USD $</option>
+            {CURRENCY_OPTIONS.map((option) => (
+              <option key={option.value} value={option.value}>
+                {option.label}
+              </option>
+            ))}
           </select>
-          <div className="divider-line" aria-hidden="true" />
+          <div className="h-6 w-px bg-ink/20" aria-hidden="true" />
           <input
             id={`${uid}-amount`}
-            className="cell-input amount-input"
+            className={cn(INPUT_CLASS, 'text-lg font-semibold tracking-[0.02em]')}
             type="text"
             inputMode="decimal"
             value={amount}
@@ -292,37 +303,36 @@ export function CardInput({ onSubmit, onFieldChange, isProcessing }: Props) {
             onChange={(event) => handleAmountChange(event.target.value)}
             onBlur={() => handleBlur('amount')}
             aria-describedby={errors.amount ? `${uid}-amount-err` : undefined}
-            aria-invalid={Boolean(errors.amount)}
+            aria-invalid={Boolean(touched.amount && errors.amount)}
             disabled={isProcessing}
           />
         </div>
-        {touched.amount && errors.amount && (
-          <span id={`${uid}-amount-err`} className="error-tag" role="alert">
-            {errors.amount}
-          </span>
-        )}
-      </div>
+      </FormField>
 
-      <div className="pay-cell">
+      <div className="border-ink bg-ink border-b-2 border-r-2 md:col-span-2">
         <button
           type="submit"
-          className="pay-btn"
+          className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left text-cream transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-45"
           disabled={!submitEnabled}
           aria-disabled={!submitEnabled}
-          aria-label={
-            isProcessing
-              ? 'Processing payment'
-              : `Pay ${symbol}${amount || '0.00'}`
-          }
+          aria-label={isProcessing ? 'Processing payment' : `Pay ${symbol}${amount || '0.00'}`}
         >
           <div>
-            <div className="pay-btn-label">
+            <div className="text-[0.95rem] font-bold">
               {isProcessing ? 'Processing...' : `Pay ${symbol} ${amount || '0.00'}`}
             </div>
-            <div className="pay-btn-sub">Secure / Encrypted / Instant</div>
+            <div className="mt-1 font-mono text-[0.5rem] font-light uppercase tracking-[0.14em] text-cream/35">
+              Secure / validated / sandbox
+            </div>
           </div>
-          {!isProcessing && <span aria-hidden="true">-&gt;</span>}
-          {isProcessing && <span className="spinner" aria-hidden="true" />}
+          {isProcessing ? (
+            <span
+              className="size-4.5 shrink-0 rounded-full border-2 border-cream/20 border-t-amber animate-spin"
+              aria-hidden="true"
+            />
+          ) : (
+            <span aria-hidden="true">-&gt;</span>
+          )}
         </button>
       </div>
     </form>
