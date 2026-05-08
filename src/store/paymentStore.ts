@@ -5,14 +5,12 @@ import { loadTransactions, saveTransactions, upsertTransaction } from '@/utils/s
 interface PaymentState {
   status: PaymentStatus
   currentTxId: string | null
-  currentAttempt: number
+  attemptCount: number
   failureReason: string | null
   transactions: Transaction[]
-
   setStatus: (status: PaymentStatus) => void
-  setCurrentTxId: (id: string) => void
-  incrementAttempt: () => void
-  resetAttempt: () => void
+  setCurrentTxId: (id: string | null) => void
+  setAttemptCount: (attemptCount: number) => void
   setFailureReason: (reason: string | null) => void
   addOrUpdateTransaction: (tx: Transaction) => void
   loadHistory: () => void
@@ -22,19 +20,13 @@ interface PaymentState {
 export const usePaymentStore = create<PaymentState>((set, get) => ({
   status: 'idle',
   currentTxId: null,
-  currentAttempt: 1,
+  attemptCount: 0,
   failureReason: null,
   transactions: [],
 
   setStatus: (status) => set({ status }),
-
   setCurrentTxId: (id) => set({ currentTxId: id }),
-
-  incrementAttempt: () =>
-    set((s) => ({ currentAttempt: s.currentAttempt + 1 })),
-
-  resetAttempt: () => set({ currentAttempt: 1 }),
-
+  setAttemptCount: (attemptCount) => set({ attemptCount }),
   setFailureReason: (reason) => set({ failureReason: reason }),
 
   addOrUpdateTransaction: (tx) => {
@@ -51,7 +43,7 @@ export const usePaymentStore = create<PaymentState>((set, get) => ({
     set({
       status: 'idle',
       currentTxId: null,
-      currentAttempt: 1,
+      attemptCount: 0,
       failureReason: null,
     }),
 }))
