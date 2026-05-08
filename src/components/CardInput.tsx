@@ -325,19 +325,35 @@ export function CardInput({ onSubmit, onFieldChange, isProcessing }: Props) {
         error={amountMeta.error}
       >
         <div className="flex items-center gap-3">
-          <select
-            className="shrink-0 bg-transparent font-mono text-xs font-semibold tracking-[0.08em] text-amber focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
-            value={currency}
-            onChange={(event) => handleCurrencyChange(event.target.value as Currency)}
-            aria-label="Currency"
-            disabled={isProcessing}
-          >
-            {CURRENCY_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>
-                {option.label}
-              </option>
-            ))}
-          </select>
+          <div className="relative shrink-0">
+            <select
+              className="min-w-22 appearance-none bg-transparent pr-7 font-mono text-xs font-semibold tracking-[0.08em] whitespace-nowrap text-amber focus:outline-none disabled:cursor-not-allowed disabled:opacity-50"
+              value={currency}
+              onChange={(event) => handleCurrencyChange(event.target.value as Currency)}
+              aria-label="Currency"
+              disabled={isProcessing}
+            >
+              {CURRENCY_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <span
+              className="pointer-events-none absolute right-0 top-1/2 -translate-y-1/2 text-amber"
+              aria-hidden="true"
+            >
+              <svg width="12" height="8" viewBox="0 0 12 8" fill="none">
+                <path
+                  d="M1 1.25L6 6.25L11 1.25"
+                  stroke="currentColor"
+                  strokeWidth="1.5"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+            </span>
+          </div>
           <div className="h-6 w-px bg-ink/20" aria-hidden="true" />
           <input
             id={`${uid}-amount`}
