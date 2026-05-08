@@ -15,13 +15,6 @@ export interface PaymentFormValues extends CardPreviewFields {
   currency: Currency
 }
 
-export interface CardFields {
-  name: string
-  number: string
-  expiry: string
-  cvv: string
-}
-
 export interface PaymentFormState extends PaymentFormValues {
   cvv: string
 }
