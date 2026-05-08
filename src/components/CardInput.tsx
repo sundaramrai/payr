@@ -1,6 +1,6 @@
 'use client'
 
-import { SyntheticEvent, useEffect, useId, useRef, useState } from 'react'
+import { type SubmitEvent, useEffect, useId, useRef, useState } from 'react'
 import { FormField } from '@/components/ui/FormField'
 import {
   CardPreviewFields,
@@ -63,6 +63,70 @@ const CURRENCY_OPTIONS: ReadonlyArray<{ value: Currency; label: string }> = [
 const INPUT_CLASS =
   'w-full bg-transparent font-mono text-[0.82rem] tracking-[0.04em] text-ink placeholder:text-ink/25 focus:outline-none disabled:cursor-not-allowed disabled:opacity-50'
 
+function getFieldMeta(
+  uid: string,
+  touched: Partial<Record<FormFieldName, boolean>>,
+  errors: FormErrors,
+  field: FormFieldName
+) {
+  const error = touched[field] ? errors[field] : undefined
+
+  return {
+    error,
+    describedBy: error ? `${uid}-${field}-err` : undefined,
+    invalid: Boolean(error),
+  }
+}
+
+function updateValidatedField(
+  field: FormFieldName,
+  value: string,
+  touched: Partial<Record<FormFieldName, boolean>>,
+  updateValues: (patch: Partial<PaymentFormState>) => void,
+  setFieldError: (field: FormFieldName, value: string | undefined) => void,
+  validate: (value: string) => string | undefined
+) {
+  updateValues({ [field]: value } as Partial<PaymentFormState>)
+
+  if (touched[field]) {
+    setFieldError(field, validate(value))
+  }
+}
+
+function focusFirstInvalidField(form: HTMLFormElement) {
+  requestAnimationFrame(() => {
+    form.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
+  })
+}
+
+function CardTypeIndicator({ label }: { readonly label: string | null }) {
+  if (!label) {
+    return null
+  }
+
+  return (
+    <span
+      className="shrink-0 rounded-sm border border-amber px-2 py-1 font-mono text-[0.56rem] font-semibold tracking-[0.06em] text-amber"
+      aria-label={`Card type: ${label}`}
+    >
+      {label}
+    </span>
+  )
+}
+
+function SubmitIndicator({ isProcessing }: { readonly isProcessing: boolean }) {
+  if (isProcessing) {
+    return (
+      <span
+        className="size-4.5 shrink-0 rounded-full border-2 border-cream/20 border-t-amber animate-spin"
+        aria-hidden="true"
+      />
+    )
+  }
+
+  return <span aria-hidden="true">-&gt;</span>
+}
+
 export function CardInput({ onSubmit, onFieldChange, isProcessing }: Props) {
   const uid = useId()
   const hasMountedRef = useRef(false)
@@ -77,6 +141,15 @@ export function CardInput({ onSubmit, onFieldChange, isProcessing }: Props) {
   const validationErrors = validateAll(values, cardType)
   const submitEnabled = isFormValid(validationErrors) && !isProcessing
   const symbol = parseCurrencySymbol(currency)
+  const displayAmount = amount || '0.00'
+  const submitAriaLabel = isProcessing ? 'Processing payment' : `Pay ${symbol}${displayAmount}`
+  const submitButtonText = isProcessing ? 'Processing...' : `Pay ${symbol} ${displayAmount}`
+  const cvvPlaceholder = cvvLength === 4 ? '0000' : '000'
+  const nameMeta = getFieldMeta(uid, touched, errors, 'name')
+  const numberMeta = getFieldMeta(uid, touched, errors, 'number')
+  const expiryMeta = getFieldMeta(uid, touched, errors, 'expiry')
+  const cvvMeta = getFieldMeta(uid, touched, errors, 'cvv')
+  const amountMeta = getFieldMeta(uid, touched, errors, 'amount')
 
   useEffect(() => {
     if (!hasMountedRef.current) {
@@ -105,63 +178,43 @@ export function CardInput({ onSubmit, onFieldChange, isProcessing }: Props) {
   }
 
   function handleNameChange(nextValue: string) {
-    updateValues({ name: nextValue })
-    if (touched.name) {
-      setFieldError('name', validateName(nextValue))
-    }
+    updateValidatedField('name', nextValue, touched, updateValues, setFieldError, validateName)
   }
 
   function handleNumberChange(nextValue: string) {
     const detectedCardType = detectCardType(nextValue)
     const formatted = formatCardNumber(nextValue, detectedCardType)
-    updateValues({ number: formatted })
-
-    if (touched.number) {
-      setFieldError('number', validateCardNumber(formatted))
-    }
+    updateValidatedField('number', formatted, touched, updateValues, setFieldError, validateCardNumber)
   }
 
   function handleExpiryChange(nextValue: string) {
     const formatted = formatExpiry(nextValue)
-    updateValues({ expiry: formatted })
-
-    if (touched.expiry) {
-      setFieldError('expiry', validateExpiry(formatted))
-    }
+    updateValidatedField('expiry', formatted, touched, updateValues, setFieldError, validateExpiry)
   }
 
   function handleCvvChange(nextValue: string) {
     const raw = nextValue.replaceAll(/\D/g, '').slice(0, cvvLength)
-    updateValues({ cvv: raw })
-
-    if (touched.cvv) {
-      setFieldError('cvv', validateCvv(raw, cardType))
-    }
+    updateValidatedField('cvv', raw, touched, updateValues, setFieldError, (value) =>
+      validateCvv(value, cardType)
+    )
   }
 
   function handleAmountChange(nextValue: string) {
     const formatted = formatAmount(nextValue)
-    updateValues({ amount: formatted })
-
-    if (touched.amount) {
-      setFieldError('amount', validateAmount(formatted))
-    }
+    updateValidatedField('amount', formatted, touched, updateValues, setFieldError, validateAmount)
   }
 
   function handleCurrencyChange(nextCurrency: Currency) {
     updateValues({ currency: nextCurrency })
   }
 
-  function handleSubmit(event: SyntheticEvent<HTMLFormElement>) {
+  function handleSubmit(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
     setTouched(TOUCHED_FIELDS)
     setErrors(validationErrors)
 
     if (!isFormValid(validationErrors)) {
-      const form = event.currentTarget
-      requestAnimationFrame(() => {
-        form.querySelector<HTMLElement>('[aria-invalid="true"]')?.focus()
-      })
+      focusFirstInvalidField(event.currentTarget)
       return
     }
 
@@ -178,7 +231,7 @@ export function CardInput({ onSubmit, onFieldChange, isProcessing }: Props) {
         full
         htmlFor={`${uid}-name`}
         label="Cardholder name"
-        error={touched.name ? errors.name : undefined}
+        error={nameMeta.error}
       >
         <input
           id={`${uid}-name`}
@@ -189,8 +242,8 @@ export function CardInput({ onSubmit, onFieldChange, isProcessing }: Props) {
           placeholder="Full name as on card"
           onChange={(event) => handleNameChange(event.target.value)}
           onBlur={() => handleBlur('name')}
-          aria-describedby={errors.name ? `${uid}-name-err` : undefined}
-          aria-invalid={Boolean(touched.name && errors.name)}
+          aria-describedby={nameMeta.describedBy}
+          aria-invalid={nameMeta.invalid}
           disabled={isProcessing}
         />
       </FormField>
@@ -199,7 +252,7 @@ export function CardInput({ onSubmit, onFieldChange, isProcessing }: Props) {
         full
         htmlFor={`${uid}-number`}
         label="Card number"
-        error={touched.number ? errors.number : undefined}
+        error={numberMeta.error}
       >
         <div className="flex items-center justify-between gap-3">
           <input
@@ -213,25 +266,18 @@ export function CardInput({ onSubmit, onFieldChange, isProcessing }: Props) {
             maxLength={getCardMaxLength(cardType)}
             onChange={(event) => handleNumberChange(event.target.value)}
             onBlur={() => handleBlur('number')}
-            aria-describedby={errors.number ? `${uid}-number-err` : undefined}
-            aria-invalid={Boolean(touched.number && errors.number)}
+            aria-describedby={numberMeta.describedBy}
+            aria-invalid={numberMeta.invalid}
             disabled={isProcessing}
           />
-          {currentCardTypeLabel && (
-            <span
-              className="shrink-0 rounded-sm border border-amber px-2 py-1 font-mono text-[0.56rem] font-semibold tracking-[0.06em] text-amber"
-              aria-label={`Card type: ${currentCardTypeLabel}`}
-            >
-              {currentCardTypeLabel}
-            </span>
-          )}
+          <CardTypeIndicator label={currentCardTypeLabel} />
         </div>
       </FormField>
 
       <FormField
         htmlFor={`${uid}-expiry`}
         label="Expiry date"
-        error={touched.expiry ? errors.expiry : undefined}
+        error={expiryMeta.error}
       >
         <input
           id={`${uid}-expiry`}
@@ -244,8 +290,8 @@ export function CardInput({ onSubmit, onFieldChange, isProcessing }: Props) {
           maxLength={7}
           onChange={(event) => handleExpiryChange(event.target.value)}
           onBlur={() => handleBlur('expiry')}
-          aria-describedby={errors.expiry ? `${uid}-expiry-err` : undefined}
-          aria-invalid={Boolean(touched.expiry && errors.expiry)}
+          aria-describedby={expiryMeta.describedBy}
+          aria-invalid={expiryMeta.invalid}
           disabled={isProcessing}
         />
       </FormField>
@@ -253,7 +299,7 @@ export function CardInput({ onSubmit, onFieldChange, isProcessing }: Props) {
       <FormField
         htmlFor={`${uid}-cvv`}
         label="CVV / CVC"
-        error={touched.cvv ? errors.cvv : undefined}
+        error={cvvMeta.error}
       >
         <input
           id={`${uid}-cvv`}
@@ -262,12 +308,12 @@ export function CardInput({ onSubmit, onFieldChange, isProcessing }: Props) {
           inputMode="numeric"
           autoComplete="cc-csc"
           value={cvv}
-          placeholder={cvvLength === 4 ? '0000' : '000'}
+          placeholder={cvvPlaceholder}
           maxLength={cvvLength}
           onChange={(event) => handleCvvChange(event.target.value)}
           onBlur={() => handleBlur('cvv')}
-          aria-describedby={errors.cvv ? `${uid}-cvv-err` : undefined}
-          aria-invalid={Boolean(touched.cvv && errors.cvv)}
+          aria-describedby={cvvMeta.describedBy}
+          aria-invalid={cvvMeta.invalid}
           disabled={isProcessing}
         />
       </FormField>
@@ -276,7 +322,7 @@ export function CardInput({ onSubmit, onFieldChange, isProcessing }: Props) {
         full
         htmlFor={`${uid}-amount`}
         label="Amount"
-        error={touched.amount ? errors.amount : undefined}
+        error={amountMeta.error}
       >
         <div className="flex items-center gap-3">
           <select
@@ -302,8 +348,8 @@ export function CardInput({ onSubmit, onFieldChange, isProcessing }: Props) {
             placeholder="0.00"
             onChange={(event) => handleAmountChange(event.target.value)}
             onBlur={() => handleBlur('amount')}
-            aria-describedby={errors.amount ? `${uid}-amount-err` : undefined}
-            aria-invalid={Boolean(touched.amount && errors.amount)}
+            aria-describedby={amountMeta.describedBy}
+            aria-invalid={amountMeta.invalid}
             disabled={isProcessing}
           />
         </div>
@@ -315,24 +361,15 @@ export function CardInput({ onSubmit, onFieldChange, isProcessing }: Props) {
           className="flex w-full items-center justify-between gap-4 px-5 py-4 text-left text-cream transition hover:bg-white/5 disabled:cursor-not-allowed disabled:opacity-45"
           disabled={!submitEnabled}
           aria-disabled={!submitEnabled}
-          aria-label={isProcessing ? 'Processing payment' : `Pay ${symbol}${amount || '0.00'}`}
+          aria-label={submitAriaLabel}
         >
           <div>
-            <div className="text-[0.95rem] font-bold">
-              {isProcessing ? 'Processing...' : `Pay ${symbol} ${amount || '0.00'}`}
-            </div>
+            <div className="text-[0.95rem] font-bold">{submitButtonText}</div>
             <div className="mt-1 font-mono text-[0.5rem] font-light uppercase tracking-[0.14em] text-cream/35">
               Secure / validated / sandbox
             </div>
           </div>
-          {isProcessing ? (
-            <span
-              className="size-4.5 shrink-0 rounded-full border-2 border-cream/20 border-t-amber animate-spin"
-              aria-hidden="true"
-            />
-          ) : (
-            <span aria-hidden="true">-&gt;</span>
-          )}
+          <SubmitIndicator isProcessing={isProcessing} />
         </button>
       </div>
     </form>
