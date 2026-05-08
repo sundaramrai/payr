@@ -16,7 +16,8 @@ interface Props {
   readonly failureReason: string | null
   readonly canRetry: boolean
   readonly retriesExhausted: boolean
-  readonly currentAttempt: number
+  readonly attemptCount: number
+  readonly nextAttempt: number
   readonly maxRetries: number
   readonly isProcessing: boolean
   readonly onSubmit: (fields: PaymentFormValues) => void
@@ -33,7 +34,8 @@ export function PaymentStage({
   failureReason,
   canRetry,
   retriesExhausted,
-  currentAttempt,
+  attemptCount,
+  nextAttempt,
   maxRetries,
   isProcessing,
   onSubmit,
@@ -64,7 +66,7 @@ export function PaymentStage({
   }
 
   return (
-    <div className="result-wrap">
+    <div className="flex flex-col">
       <StatusScreen
         status={status}
         failureReason={failureReason}
@@ -74,7 +76,8 @@ export function PaymentStage({
       />
       {(canRetry || retriesExhausted) && (
         <RetryBanner
-          attempt={currentAttempt}
+          attemptCount={attemptCount}
+          nextAttempt={nextAttempt}
           maxRetries={maxRetries}
           failureReason={failureReason}
           retriesExhausted={retriesExhausted}
@@ -82,7 +85,11 @@ export function PaymentStage({
         />
       )}
       {(status === 'success' || retriesExhausted) && (
-        <button className="new-payment-btn" type="button" onClick={onReset}>
+        <button
+          className="border-ink border-x-2 border-b-2 bg-transparent px-5 py-3 text-left font-mono text-[0.62rem] uppercase tracking-[0.14em] text-ink/60 transition hover:text-ink"
+          type="button"
+          onClick={onReset}
+        >
           {status === 'success' ? 'Start a new payment' : 'Try a different card'}
         </button>
       )}
