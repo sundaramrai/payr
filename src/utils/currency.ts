@@ -1,7 +1,12 @@
 import { Currency } from '@/types'
 
+const LOCALES: Record<Currency, string> = {
+  INR: 'en-IN',
+  USD: 'en-US',
+}
+
 export function formatCurrency(amount: number, currency: Currency): string {
-  const formatter = new Intl.NumberFormat('en-IN', {
+  const formatter = new Intl.NumberFormat(LOCALES[currency], {
     style: 'currency',
     currency,
     minimumFractionDigits: 2,
@@ -15,7 +20,7 @@ export function formatCurrency(amount: number, currency: Currency): string {
         return part.value
       }
 
-      return currency === 'INR' ? '₹' : '$'
+      return parseCurrencySymbol(currency)
     })
     .join('')
 }
