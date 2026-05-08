@@ -1,19 +1,20 @@
 'use client'
 
-import { useRef } from 'react'
+import { useEffect, useRef } from 'react'
+import { useShallow } from 'zustand/react/shallow'
 import { usePaymentStore } from '@/store/paymentStore'
-import { Currency, PaymentFormValues, PaymentPayload, Transaction } from '@/types'
+import { GatewayResponse, PaymentFormValues, Transaction } from '@/types'
 import { parseRawAmount } from '@/utils/currency'
 
 const MAX_RETRIES = 3
-const TIMEOUT_MS = 6_000
-const TIMEOUT_MESSAGE = 'Request timed out after 6 seconds'
-const NETWORK_MESSAGE = 'Network error - check your connection'
+const CLIENT_TIMEOUT_MS = 6_000
+const CLIENT_TIMEOUT_MESSAGE = 'Request timed out after 6 seconds'
+const NETWORK_ERROR_MESSAGE = 'Network error - check your connection'
 
 function buildTransaction(
   txId: string,
   amount: number,
-  currency: Currency,
+  currency: PaymentFormValues['currency'],
   attempts: number,
   status: Transaction['status'],
   reason?: string
@@ -29,107 +30,160 @@ function buildTransaction(
   }
 }
 
+function isGatewayResponse(value: unknown): value is GatewayResponse {
+  if (!value || typeof value !== 'object') {
+    return false
+  }
+
+  const candidate = value as Partial<GatewayResponse>
+  return (
+    typeof candidate.transactionId === 'string' &&
+    (candidate.status === 'success' || candidate.status === 'failed') &&
+    (candidate.reason === undefined || typeof candidate.reason === 'string')
+  )
+}
+
+async function parseGatewayResponse(response: Response) {
+  try {
+    const data = (await response.json()) as unknown
+    return isGatewayResponse(data) ? data : null
+  } catch {
+    return null
+  }
+}
+
+function getFailureStatus(response: Response): 'failed' | 'timeout' {
+  return response.status === 504 ? 'timeout' : 'failed'
+}
+
+function getFailureMessage(response: Response, reason?: string): string {
+  if (reason) {
+    return reason
+  }
+
+  if (response.status === 504) {
+    return 'Gateway timeout'
+  }
+
+  if (response.status >= 500) {
+    return 'Payment gateway unavailable'
+  }
+
+  return 'Payment declined'
+}
+
 export function usePayment() {
   const {
     status,
     currentTxId,
-    currentAttempt,
+    attemptCount,
     failureReason,
     setStatus,
     setCurrentTxId,
+    setAttemptCount,
     setFailureReason,
-    incrementAttempt,
-    resetAttempt,
     addOrUpdateTransaction,
     resetPayment,
-  } = usePaymentStore()
+  } = usePaymentStore(
+    useShallow((state) => ({
+      status: state.status,
+      currentTxId: state.currentTxId,
+      attemptCount: state.attemptCount,
+      failureReason: state.failureReason,
+      setStatus: state.setStatus,
+      setCurrentTxId: state.setCurrentTxId,
+      setAttemptCount: state.setAttemptCount,
+      setFailureReason: state.setFailureReason,
+      addOrUpdateTransaction: state.addOrUpdateTransaction,
+      resetPayment: state.resetPayment,
+    }))
+  )
 
   const abortRef = useRef<AbortController | null>(null)
+
+  useEffect(() => {
+    return () => abortRef.current?.abort()
+  }, [])
 
   async function submitPayment(fields: PaymentFormValues) {
     abortRef.current?.abort()
 
-    const txId =
-      currentAttempt === 1
-        ? crypto.randomUUID()
-        : (currentTxId ?? crypto.randomUUID())
+    const attempt = attemptCount + 1
+    const txId = currentTxId ?? crypto.randomUUID()
 
-    if (currentAttempt === 1 || currentTxId === null) {
+    if (!currentTxId) {
       setCurrentTxId(txId)
     }
 
     const abortController = new AbortController()
     abortRef.current = abortController
 
-    const timeoutId = setTimeout(() => abortController.abort(), TIMEOUT_MS)
+    let didTimeout = false
+    const timeoutId = setTimeout(() => {
+      didTimeout = true
+      abortController.abort()
+    }, CLIENT_TIMEOUT_MS)
+
     const rawAmount = parseRawAmount(fields.amount)
 
     setStatus('processing')
     setFailureReason(null)
 
-    const payload: PaymentPayload = {
-      transactionId: txId,
-      cardName: fields.name,
-      cardNumber: fields.number,
-      expiry: fields.expiry,
-      amount: rawAmount,
-      currency: fields.currency,
-      attempt: currentAttempt,
-    }
-
     try {
       const response = await fetch('/api/pay', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
+        body: JSON.stringify({
+          transactionId: txId,
+          cardName: fields.name,
+          cardNumber: fields.number,
+          expiry: fields.expiry,
+          amount: rawAmount,
+          currency: fields.currency,
+          attempt,
+        }),
         signal: abortController.signal,
       })
 
+      const data = await parseGatewayResponse(response)
       clearTimeout(timeoutId)
 
-      const data = await response.json()
-      const isSuccess = data.status === 'success'
-      const transaction = buildTransaction(
-        txId,
-        rawAmount,
-        fields.currency,
-        currentAttempt,
-        isSuccess ? 'success' : 'failed',
-        data.reason
-      )
-
-      addOrUpdateTransaction(transaction)
-
-      if (isSuccess) {
+      if (response.ok && data?.status === 'success') {
+        addOrUpdateTransaction(
+          buildTransaction(txId, rawAmount, fields.currency, attempt, 'success')
+        )
+        setAttemptCount(attempt)
         setStatus('success')
-        resetAttempt()
         return
       }
 
-      setStatus('failed')
-      setFailureReason(data.reason ?? 'Payment declined')
-      incrementAttempt()
-    } catch (error: unknown) {
+      const nextStatus = getFailureStatus(response)
+      const message = getFailureMessage(response, data?.reason)
+
+      addOrUpdateTransaction(
+        buildTransaction(txId, rawAmount, fields.currency, attempt, nextStatus, message)
+      )
+      setAttemptCount(attempt)
+      setStatus(nextStatus)
+      setFailureReason(message)
+    } catch {
       clearTimeout(timeoutId)
 
-      const isTimeout =
-        error instanceof DOMException && error.name === 'AbortError'
+      if (abortController.signal.aborted && !didTimeout) {
+        return
+      }
 
-      const message = isTimeout ? TIMEOUT_MESSAGE : NETWORK_MESSAGE
-      const transaction = buildTransaction(
-        txId,
-        rawAmount,
-        fields.currency,
-        currentAttempt,
-        isTimeout ? 'timeout' : 'failed',
-        message
+      const nextStatus = didTimeout ? 'timeout' : 'failed'
+      const message = didTimeout ? CLIENT_TIMEOUT_MESSAGE : NETWORK_ERROR_MESSAGE
+
+      addOrUpdateTransaction(
+        buildTransaction(txId, rawAmount, fields.currency, attempt, nextStatus, message)
       )
-
-      addOrUpdateTransaction(transaction)
-      setStatus(isTimeout ? 'timeout' : 'failed')
+      setAttemptCount(attempt)
+      setStatus(nextStatus)
       setFailureReason(message)
-      incrementAttempt()
     } finally {
+      clearTimeout(timeoutId)
       if (abortRef.current === abortController) {
         abortRef.current = null
       }
@@ -137,13 +191,14 @@ export function usePayment() {
   }
 
   const canRetry =
-    (status === 'failed' || status === 'timeout') && currentAttempt <= MAX_RETRIES
+    (status === 'failed' || status === 'timeout') && attemptCount < MAX_RETRIES
   const retriesExhausted =
-    (status === 'failed' || status === 'timeout') && currentAttempt > MAX_RETRIES
+    (status === 'failed' || status === 'timeout') && attemptCount >= MAX_RETRIES
 
   return {
     status,
-    currentAttempt,
+    attemptCount,
+    nextAttempt: Math.min(attemptCount + 1, MAX_RETRIES),
     failureReason,
     canRetry,
     retriesExhausted,
